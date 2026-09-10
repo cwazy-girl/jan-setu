@@ -1,17 +1,14 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Phone | JAN SETU</title>
+    <title>Reporter Access | JAN SETU</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-```
-<!-- Same navbar -->
 <header class="navbar">
     <a href="index.html" class="brand">
         <img src="assets/jansetu-logo.jpg" alt="JAN SETU Logo">
@@ -19,7 +16,7 @@
 
     <nav class="nav-links" aria-label="Main navigation">
         <a href="index.html">Home</a>
-        <a href="problems.html">List of Problems</a>
+        <a href="list-all-problems.html">List of Problems</a>
         <a href="index.html#about">About</a>
         <a href="index.html#initiatives">Initiatives</a>
         <a href="index.html#explore">Explore Jharkhand</a>
@@ -29,113 +26,45 @@
     </nav>
 </header>
 
-<!-- Phone verification card -->
 <main class="otp-page">
     <div class="otp-card">
 
         <p class="otp-label">REPORT A PROBLEM</p>
 
         <h1>
-            Verify your phone <span>number</span>
+            Share a community <span>problem</span>
         </h1>
 
         <p class="otp-text">
-            Enter your phone number to receive an OTP.
+            Continue to submit the problem location, description
+            and optional supporting photos.
         </p>
 
-        <!-- Phone input -->
-        <div class="phone-box">
-            <span aria-hidden="true">🇮🇳 +91 </span>
-
-            <input
-                type="tel"
-                id="phone"
-                maxlength="10"
-                inputmode="numeric"
-                autocomplete="tel"
-                placeholder="98XXX XXXXX"
-                aria-label="10-digit phone number"
-            >
-        </div>
-
-        <!-- SMS is default -->
-        <button id="smsBtn" class="sms-btn" type="button">
-            Send OTP via SMS
-        </button>
-
-        <p class="or-text">OR</p>
-
-        <!-- WhatsApp alternative -->
-        <button id="whatsappBtn" class="whatsapp-btn" type="button">
-            Use WhatsApp Instead
+        <button
+            id="continueBtn"
+            class="sms-btn"
+            type="button"
+        >
+            Continue to Report
         </button>
 
         <p class="safe-text">
-            Your number will only be used for verification.
+            After submission, keep your private Track ID to follow
+            the problem's progress.
         </p>
 
     </div>
 </main>
 
-<!-- Background image -->
 <div class="otp-landscape"></div>
 
 <script>
-    // Reporting always starts with phone verification in the prototype.
-    // Tracking from the public problem list uses only the private Track ID.
-    const params = new URLSearchParams(window.location.search);
-    const allowedReturnPages = ["report.html"];
-    const requestedReturnTo = params.get("returnTo");
-    const returnTo = allowedReturnPages.includes(requestedReturnTo)
-        ? requestedReturnTo
-        : "report.html";
-
-    localStorage.setItem("reporterReturnTo", returnTo);
-
-    // Get input and buttons
-    const phone = document.getElementById("phone");
-    const smsBtn = document.getElementById("smsBtn");
-    const whatsappBtn = document.getElementById("whatsappBtn");
-
-    // Keep only numeric characters.
-    phone.addEventListener("input", function () {
-        phone.value = phone.value.replace(/\D/g, "").slice(0, 10);
-    });
-
-    // Check if phone number is valid
-    function validPhone() {
-        const number = phone.value.replace(/\D/g, "");
-
-        if (number.length !== 10) {
-            alert("Enter a valid 10-digit phone number.");
-            phone.focus();
-            return false;
-        }
-
-        return true;
-    }
-
-    // SMS OTP
-    smsBtn.addEventListener("click", function () {
-        if (!validPhone()) return;
-
-        localStorage.setItem("phone", phone.value);
-        localStorage.setItem("otpMethod", "sms");
-
-        window.location.href = "verify-otp.html";
-    });
-
-    // WhatsApp OTP
-    whatsappBtn.addEventListener("click", function () {
-        if (!validPhone()) return;
-
-        localStorage.setItem("phone", phone.value);
-        localStorage.setItem("otpMethod", "whatsapp");
-
-        window.location.href = "verify-otp.html";
+document
+    .getElementById("continueBtn")
+    .addEventListener("click", function () {
+        window.location.href = "report.html";
     });
 </script>
-```
 
 </body>
 </html>
