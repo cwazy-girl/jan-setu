@@ -397,13 +397,13 @@ to {opacity:1; transform:translateY(0); }
     */
 
     // Local development -> Go backend on localhost:8080.
-    // Deployed same-origin -> relative /api/... (no hardcoded Render URL).
-    const API_BASE =
-      (window.location.hostname === "localhost" ||
-       window.location.hostname === "127.0.0.1" ||
-       window.location.protocol === "file:")
-        ? "http://localhost:8080"
-        : "";
+    // Deployed frontend -> Render backend.
+const API_BASE =
+  (window.location.hostname === "localhost" ||
+   window.location.hostname === "127.0.0.1" ||
+   window.location.protocol === "file:")
+    ? "http://localhost:8080"
+    : "https://jan-setu-bf03.onrender.com";
 
     const accountId = Number(localStorage.getItem("solverAccountId"));
 

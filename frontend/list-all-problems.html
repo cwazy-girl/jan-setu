@@ -690,7 +690,12 @@
   </div>
 
   <script>
-    const API_BASE = "https://jan-setu-bf03.onrender.com";
+const API_BASE =
+  (window.location.hostname === "localhost" ||
+   window.location.hostname === "127.0.0.1" ||
+   window.location.protocol === "file:")
+    ? "http://localhost:8080"
+    : "https://jan-setu-bf03.onrender.com";
 
     const problemsList = document.getElementById("problemsList");
     const refreshBtn = document.getElementById("refreshBtn");

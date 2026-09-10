@@ -162,6 +162,13 @@
 
 <script>
 
+const API_BASE =
+  (window.location.hostname === "localhost" ||
+   window.location.hostname === "127.0.0.1" ||
+   window.location.protocol === "file:")
+    ? "http://localhost:8080"
+    : "https://jan-setu-bf03.onrender.com";
+
 /* =========================================================
    ROLE LABELS
    ========================================================= */
@@ -898,7 +905,7 @@ async function loadTeams() {
 
     const response =
       await fetch(
-        `/api/projects?account_id=${encodeURIComponent(accountId)}`
+        `${API_BASE}/api/projects?account_id=${encodeURIComponent(accountId)}`
       );
 
 
