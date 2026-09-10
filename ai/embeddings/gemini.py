@@ -87,35 +87,62 @@ class GeminiEmbeddingBackend:
             output_dimensionality=self._dimensions,
         )
 
-        results: list[Sequence[float]] = []
+        # Gemini Embedding 2 can return a separate embedding for
+        # each Content object in a single request. This avoids
+        # making one network round-trip per problem during
+        # deduplication and matching.
+        contents = [
+            self._types.Content(
+                parts=[
+                    self._types.Part.from_text(
+                        text=text,
+                    )
+                ]
+            )
+            for text in values
+        ]
 
-        for text in values:
-
-            async def operation(_remaining: float, text: str = text) -> Any:
-                return await self._client.aio.models.embed_content(
-                    model=self._model,
-                    contents=text,
-                    config=config,
-                )
-
-            response = await run_provider_request(
-                operation,
-                provider_name="gemini-embeddings",
-                retry=self._retry,
-                timeout_seconds=None,
-                normalize_error=self._normalize_error,
+        async def operation(
+            _remaining: float,
+        ) -> Any:
+            return await self._client.aio.models.embed_content(
+                model=self._model,
+                contents=contents,
+                config=config,
             )
 
-            embeddings = getattr(response, "embeddings", None) or []
+        response = await run_provider_request(
+            operation,
+            provider_name="gemini-embeddings",
+            retry=self._retry,
+            timeout_seconds=None,
+            normalize_error=self._normalize_error,
+        )
 
-            if len(embeddings) != 1:
-                raise ProviderError(
-                    "Gemini embedding request returned an unexpected "
-                    f"number of embeddings: {len(embeddings)}",
-                    provider="gemini-embeddings",
+        embeddings = (
+            getattr(response, "embeddings", None)
+            or []
+        )
+
+        if len(embeddings) != len(values):
+            raise ProviderError(
+                "Gemini embedding request returned an unexpected "
+                f"number of embeddings: expected {len(values)}, "
+                f"received {len(embeddings)}",
+                provider="gemini-embeddings",
+            )
+
+        results: list[Sequence[float]] = []
+
+        for embedding in embeddings:
+            vector = list(
+                getattr(
+                    embedding,
+                    "values",
+                    None,
                 )
-
-            vector = list(getattr(embeddings[0], "values", None) or [])
+                or []
+            )
 
             if not vector:
                 raise ProviderError(
