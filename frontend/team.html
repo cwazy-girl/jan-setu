@@ -184,6 +184,15 @@ const roleLabels = {
   "innovation-hub": "Innovation Hub"
 };
 
+const mentorRoles = new Set([
+  "startup",
+  "company",
+  "msme",
+  "csr",
+  "research-lab",
+  "innovation-hub"
+]);
+
 
 const role =
   localStorage.getItem("solverRole") || "student";
@@ -525,7 +534,7 @@ function createMemberCard(member) {
 
 
   const isMentor =
-    member.role === "company";
+    mentorRoles.has(member.role);
 
 
   card.innerHTML = `
@@ -607,7 +616,7 @@ function renderProjectTeam(project) {
   const mentors =
     members.filter(member =>
       member &&
-      member.role === "company"
+      mentorRoles.has(member.role)
     );
 
 

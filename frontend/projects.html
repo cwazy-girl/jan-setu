@@ -133,6 +133,15 @@ const roleLabels = {
   "innovation-hub": "Innovation Hub"
 };
 
+const mentorRoles = new Set([
+  "startup",
+  "company",
+  "msme",
+  "csr",
+  "research-lab",
+  "innovation-hub"
+]);
+
 
 const storedRole =
   localStorage.getItem("solverRole");
@@ -337,7 +346,7 @@ function formatRole(role) {
 function renderMember(member) {
 
   const memberRole =
-    isIndustry && member.role === "company"
+    isIndustry && mentorRoles.has(member.role)
       ? "Mentor"
       : formatRole(member.role);
 
@@ -475,7 +484,7 @@ function renderProject(project) {
   const mentors =
     members.filter(member =>
       member &&
-      member.role === "company"
+      mentorRoles.has(member.role)
     );
 
 

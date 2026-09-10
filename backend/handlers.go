@@ -3489,10 +3489,17 @@ func getProjects(db *pgxpool.Pool) http.HandlerFunc {
 			p.MentorCount = 0
 
 			for _, member := range p.Members {
-				if member.Role == "company" {
-					p.MentorCount++
-				} else if member.Role == "student" || member.Role == "researcher" {
+				switch member.Role {
+				case "student", "researcher":
 					p.StudentCount++
+
+				case "startup",
+					"company",
+					"msme",
+					"csr",
+					"research-lab",
+					"innovation-hub":
+					p.MentorCount++
 				}
 			}
 
