@@ -1072,6 +1072,15 @@ const API_BASE =
       }
     }
 
+    const initialSearch =
+      new URLSearchParams(window.location.search)
+        .get("search");
+
+    if (initialSearch) {
+      searchInput.value =
+        initialSearch.trim().slice(0, 100);
+    }
+
     searchInput.addEventListener("input", renderProblems);
     statusFilter.addEventListener("change", renderProblems);
     refreshBtn.addEventListener("click", loadProblems);
