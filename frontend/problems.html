@@ -136,6 +136,16 @@ function setRoleAwareNavigation() {
     (role === "student" || role === "researcher")
       ? "ai-matches-student.html"
       : "ai-matches-industry.html";
+
+  const matchesLabel =
+    matchesLink.querySelector("span");
+
+  if (matchesLabel) {
+    matchesLabel.textContent =
+      (role === "student" || role === "researcher")
+        ? "Recommended Matches"
+        : "AI Matches";
+  }
 }
 
 

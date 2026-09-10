@@ -184,6 +184,16 @@ function setRoleAwareNavigation() {
       ? "ai-matches-student.html"
       : "ai-matches-industry.html";
 
+  const matchesLabel =
+    matchesLink.querySelector("span");
+
+  if (matchesLabel) {
+    matchesLabel.textContent =
+      (role === "student" || role === "researcher")
+        ? "Recommended Matches"
+        : "AI Matches";
+  }
+
   const projectsTitle =
     document.getElementById("projectsTitle");
 
@@ -725,7 +735,7 @@ async function loadProjects() {
           ? "Your organization is not currently mentoring any JAN SETU problems."
           : "You are not currently working on any JAN SETU problems.",
         isIndustry ? "ai-matches-industry.html" : "ai-matches-student.html",
-        isIndustry ? "Explore AI Matches" : "Explore AI Matches"
+        isIndustry ? "Explore AI Matches" : "Explore Recommended Matches"
       );
 
       return;

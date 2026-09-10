@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Matches | JAN SETU</title>
+  <title>Recommended Matches | JAN SETU</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -31,7 +31,7 @@
       </a>
 
       <a href="ai-matches-student.html" class="nav-item active">
-        <i class="fa-solid fa-wand-magic-sparkles"></i><span>AI Matches</span>
+        <i class="fa-solid fa-wand-magic-sparkles"></i><span>Recommended Matches</span>
       </a>
 
       <a href="projects.html" class="nav-item">
@@ -64,8 +64,8 @@
 
     <header class="page-header">
       <div>
-        <h1>AI Matches</h1>
-        <p>Problems recommended for your skills and interests.</p>
+        <h1>Recommended Matches</h1>
+        <p>Problems recommended from your saved profile interests.</p>
       </div>
 
       <div class="mini-profile">
@@ -83,7 +83,7 @@
 
       <div id="loadingState" class="solver-empty">
         <i class="fa-solid fa-spinner fa-spin"></i>
-        <h2>Finding matches...</h2>
+        <h2>Finding recommendations...</h2>
         <p>Loading civic problems from JAN SETU.</p>
       </div>
 
@@ -506,7 +506,7 @@ async function loadSolverProfile() {
   if (!response.ok) {
     if (response.status === 404) {
       throw new Error(
-        "Please complete your solver profile before viewing AI Matches."
+        "Please complete your solver profile before viewing Recommended Matches."
       );
     }
 
