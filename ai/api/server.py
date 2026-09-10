@@ -230,6 +230,7 @@ async def startup() -> None:
     )
 
     _orchestrator = await AIOrchestrator.build(
+        allow_in_memory_runtime=True,
         embedding_backend=embedding_backend,
         problems=[],
     )
@@ -361,6 +362,7 @@ async def analyze_report(
 
             dedup_orchestrator = (
                 await AIOrchestrator.build(
+                    allow_in_memory_runtime=True,
                     embedding_backend=embedding_backend,
                     problems=existing_problems,
                 )
@@ -531,6 +533,7 @@ async def match_industry(
 
         matching_orchestrator = (
             await AIOrchestrator.build(
+                allow_in_memory_runtime=True,
                 embedding_backend=embedding_backend,
                 organizations=[organization],
             )

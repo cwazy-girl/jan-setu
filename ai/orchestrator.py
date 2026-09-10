@@ -316,6 +316,7 @@ class AIOrchestrator:
         ] = (),
         embedding_backend: EmbeddingBackend | None = None,
         image_evidence_analyzer: ImageEvidenceAnalyzer | None = None,
+        allow_in_memory_runtime: bool = False,
         ) -> "AIOrchestrator":
         """
         Build an in-memory orchestrator for development/tests only.
@@ -323,7 +324,10 @@ class AIOrchestrator:
         Production must inject persistent retrievers/services instead.
         """
 
-        if _is_production_environment():
+        if (
+            _is_production_environment()
+            and not allow_in_memory_runtime
+        ):
             raise RuntimeError(
                 "AIOrchestrator.build() uses in-memory retrievers "
                 "and is disabled in production. Inject persistent "
@@ -338,6 +342,14 @@ class AIOrchestrator:
                 settings.provider
             )
         )
+
+        if (
+            _is_production_environment()
+            and live.name == "mock"
+        ):
+            raise RuntimeError(
+                "MockProvider is not allowed in production."
+            )
 
         effective_provider = (
             FallbackProvider(
