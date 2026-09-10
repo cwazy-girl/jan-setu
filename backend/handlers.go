@@ -559,7 +559,7 @@ func matchIndustryWithAI(
 	}
 
 	// ----------------------------------------------------------
-	// Fetch company account + profile
+	// Fetch industry/innovation account + profile
 	// ----------------------------------------------------------
 
 	var organization IndustryOrganization
@@ -589,7 +589,14 @@ func matchIndustryWithAI(
 		LEFT JOIN solver_profiles sp
 			ON sp.account_id = sa.id
 		WHERE sa.id = $1
-		  AND sa.role = 'company'
+		  AND sa.role IN (
+			  'startup',
+			  'company',
+			  'msme',
+			  'csr',
+			  'research-lab',
+			  'innovation-hub'
+		  )
 		`,
 		accountID,
 	).Scan(
@@ -605,7 +612,7 @@ func matchIndustryWithAI(
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("company account/profile not found")
+			return nil, fmt.Errorf("industry account/profile not found")
 		}
 
 		return nil, fmt.Errorf(
