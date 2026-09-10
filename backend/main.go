@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 func main() {
@@ -21,37 +22,52 @@ func main() {
 
 	log.Println("PostgreSQL connected successfully!")
 
-http.HandleFunc("/api/auth/signup", signup(db))
-http.HandleFunc("/api/auth/login", login(db))
-http.HandleFunc("/api/solver/profile/", solverProfile(db))
-http.HandleFunc("/api/reports", createReport(db))
-http.HandleFunc("/api/reports/verify-track", verifyTrackID(db))
-http.HandleFunc("/api/reports/all", getReports(db))
-http.HandleFunc("/api/reports/{id}", getReportByID(db))
-http.HandleFunc("/api/proposals/{id}/accept", acceptProposal(db))
-http.HandleFunc("/api/proposals/{id}/reject", rejectProposal(db))
-http.HandleFunc("/api/projects", getProjects(db))
-http.HandleFunc("GET /api/track/{track_id}", getTrackProblem(db))
-http.HandleFunc("GET /api/reports/{id}/mentors", getProblemMentors(db))
-http.HandleFunc(
-	"GET /api/industry/matches/{accountID}",
-	getIndustryMatches(db),
-)
-http.HandleFunc("/api/reports/{id}/work", getWork(db))
-http.HandleFunc("/api/reports/{id}/mentors", joinProblemAsMentor(db))
-http.HandleFunc("/api/reports/{id}/proposals", func(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost || r.Method == http.MethodOptions {
-		createProposal(db)(w, r)
-		return
-	}
+	http.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
 
-	if r.Method == http.MethodGet {
-		getProposals(db)(w, r)
-		return
-	}
+		w.Header().Set("Content-Type", "application/json")
 
-	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-})
+		if err := db.Ping(ctx); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"unhealthy","database":"unavailable"}`))
+			return
+		}
+
+		_, _ = w.Write([]byte(`{"status":"ok","database":"connected"}`))
+	})
+
+	http.HandleFunc("/api/auth/signup", signup(db))
+	http.HandleFunc("/api/auth/login", login(db))
+	http.HandleFunc("/api/solver/profile/", solverProfile(db))
+	http.HandleFunc("/api/reports", createReport(db))
+	http.HandleFunc("/api/reports/verify-track", verifyTrackID(db))
+	http.HandleFunc("/api/reports/all", getReports(db))
+	http.HandleFunc("/api/reports/{id}", getReportByID(db))
+	http.HandleFunc("/api/proposals/{id}/accept", acceptProposal(db))
+	http.HandleFunc("/api/proposals/{id}/reject", rejectProposal(db))
+	http.HandleFunc("/api/projects", getProjects(db))
+	http.HandleFunc("GET /api/track/{track_id}", getTrackProblem(db))
+	http.HandleFunc("GET /api/reports/{id}/mentors", getProblemMentors(db))
+	http.HandleFunc(
+		"GET /api/industry/matches/{accountID}",
+		getIndustryMatches(db),
+	)
+	http.HandleFunc("/api/reports/{id}/work", getWork(db))
+	http.HandleFunc("/api/reports/{id}/mentors", joinProblemAsMentor(db))
+	http.HandleFunc("/api/reports/{id}/proposals", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost || r.Method == http.MethodOptions {
+			createProposal(db)(w, r)
+			return
+		}
+
+		if r.Method == http.MethodGet {
+			getProposals(db)(w, r)
+			return
+		}
+
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})
 
 	http.Handle("/", http.FileServer(http.Dir("../frontend")))
 
