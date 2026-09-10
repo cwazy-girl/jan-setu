@@ -480,8 +480,11 @@ func analyzeReportWithAI(
 
 	req.Header.Set("Content-Type", "application/json")
 
+	// Keep citizen submission responsive during AI outages
+	// or slow upstream responses. createReport already has a
+	// degraded fallback when this request cannot complete.
 	client := &http.Client{
-		Timeout: 60 * time.Second,
+		Timeout: 20 * time.Second,
 	}
 
 	resp, err := client.Do(req)
