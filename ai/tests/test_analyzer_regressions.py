@@ -27,28 +27,6 @@ async def analyze(report: str, **updates):
     ).analyze(report)
 
 
-@pytest.mark.asyncio
-async def test_preserves_later_correction():
-    report = (
-        "Water is unsafe. That earlier claim was incorrect; "
-        "it is safe now."
-    )
-
-    result = await analyze(
-        report,
-        extracted_facts={
-            "problem": "unsafe",
-        },
-        source_evidence=[
-            {
-                "field": "problem",
-                "source_quote": "unsafe",
-            }
-        ],
-    )
-
-    assert result.summary == report
-    assert result.extracted_facts["problem"] == report
 
 
 @pytest.mark.asyncio

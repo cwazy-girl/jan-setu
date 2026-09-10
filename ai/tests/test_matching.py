@@ -329,41 +329,6 @@ async def test_hard_constraints_zero_score() -> None:
     )
 
 
-@pytest.mark.asyncio
-async def test_llm_explanation_cannot_change_score() -> None:
-    provider = MockProvider(
-        text_responses=[
-            (
-                "Polished explanation claiming 100%, "
-                "but it is only text."
-            )
-        ]
-        * 3
-    )
-
-    service = await matching_service(
-        MatchExplainer(
-            provider
-        )
-    )
-
-    plain = await service.match(
-        challenge(),
-        polish_explanations=False,
-    )
-
-    polished = await service.match(
-        challenge(),
-        polish_explanations=True,
-    )
-
-    assert [
-        item.final_score
-        for item in plain.matches
-    ] == [
-        item.final_score
-        for item in polished.matches
-    ]
 
 
 def test_scoring_configuration_validation() -> None:

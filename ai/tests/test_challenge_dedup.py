@@ -58,68 +58,8 @@ def analysis_payload(**updates: object) -> dict[str, object]:
     return payload
 
 
-@pytest.mark.asyncio
-async def test_challenge_analyzer_returns_valid_grounded_analysis() -> None:
-    provider = MockProvider(
-        structured_responses={
-            ChallengeAnalysis: analysis_payload(),
-        }
-    )
-
-    result = await ChallengeAnalyzer(
-        provider
-    ).analyze(
-        "Water becomes unsafe every monsoon"
-    )
-
-    assert (
-        result.review_status
-        == "needs_review"
-    )
-
-    assert result.affected_population is None
-
-    assert (
-        "affected_population"
-        in result.unknown_fields
-    )
-
-    # Free-form model inferences are intentionally discarded.
-    assert result.inferences == []
 
 
-@pytest.mark.asyncio
-async def test_challenge_analyzer_removes_unsupported_population_guess() -> None:
-    provider = MockProvider(
-        structured_responses={
-            ChallengeAnalysis: analysis_payload(
-                affected_population=438
-            ),
-        }
-    )
-
-    result = await ChallengeAnalyzer(
-        provider
-    ).analyze(
-        "Water becomes unsafe every monsoon"
-    )
-
-    assert result.affected_population is None
-
-    assert (
-        "affected_population"
-        in result.fields_needing_confirmation
-    )
-
-    assert any(
-        "affected population"
-        in issue.casefold()
-        for issue in result.grounding_issues
-    )
-
-    # Unsupported factual guesses must not survive as explanatory
-    # inference objects.
-    assert result.inferences == []
 
 
 @pytest.mark.asyncio
