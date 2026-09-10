@@ -1092,18 +1092,29 @@ func createReport(db *pgxpool.Pool) http.HandlerFunc {
 		// AI UNDERSTANDS + VALIDATES + CLASSIFIES + DEDUPLICATES
 		// --------------------------------------------------------
 
+		aiDegraded := false
+
 		aiResult, err := analyzeReportWithAI(db, report)
 
 		if err != nil {
 
-			log.Println("AI analysis error:", err)
-
-			http.Error(
-				w,
-				"AI service is currently unavailable. Please try again.",
-				http.StatusServiceUnavailable,
+			log.Println(
+				"AI analysis unavailable; accepting report in degraded mode:",
+				err,
 			)
-			return
+
+			aiDegraded = true
+
+			aiResult = &AIReportResponse{
+				Status:   "VALID",
+				Decision: "degraded_fallback",
+				DecisionReasons: []string{
+					"AI analysis was temporarily unavailable; report accepted using the fallback category.",
+				},
+				Analysis: AIAnalysis{
+					Category: "Others",
+				},
+			}
 		}
 
 		// --------------------------------------------------------
@@ -1382,6 +1393,7 @@ func createReport(db *pgxpool.Pool) http.HandlerFunc {
 			"id":               id,
 			"track_id":         trackID,
 			"status":           "VALID",
+			"ai_degraded":      aiDegraded,
 			"category":         report.Category,
 			"ai_analysis":      aiResult.Analysis,
 			"decision":         aiResult.Decision,
@@ -1514,8 +1526,6 @@ func verifyTrackID(db *pgxpool.Pool) http.HandlerFunc {
 		json.NewEncoder(w).Encode(report)
 	}
 }
-
-
 
 // ============================================================
 // PUBLIC TRACK PROBLEM
