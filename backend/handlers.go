@@ -191,7 +191,11 @@ func uploadReportPhoto(
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("x-upsert", "false")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -1283,6 +1287,7 @@ func createReport(db *pgxpool.Pool) http.HandlerFunc {
 		// --------------------------------------------------------
 
 		photoURLs := []string{}
+		photoDegraded := false
 
 		for i, header := range photos {
 
@@ -1291,16 +1296,12 @@ func createReport(db *pgxpool.Pool) http.HandlerFunc {
 			if err != nil {
 
 				log.Println(
-					"Photo open error:",
+					"Optional photo open failed; keeping report:",
 					err,
 				)
 
-				http.Error(
-					w,
-					"Failed to open uploaded photo",
-					http.StatusInternalServerError,
-				)
-				return
+				photoDegraded = true
+				continue
 			}
 
 			url, err := uploadReportPhoto(
@@ -1315,16 +1316,12 @@ func createReport(db *pgxpool.Pool) http.HandlerFunc {
 			if err != nil {
 
 				log.Println(
-					"Photo upload error:",
+					"Optional photo upload failed; keeping report:",
 					err,
 				)
 
-				http.Error(
-					w,
-					"Failed to upload report photo",
-					http.StatusInternalServerError,
-				)
-				return
+				photoDegraded = true
+				continue
 			}
 
 			photoURLs = append(
@@ -1367,16 +1364,12 @@ func createReport(db *pgxpool.Pool) http.HandlerFunc {
 			if err != nil {
 
 				log.Println(
-					"Photo URL database error:",
+					"Optional photo URL save failed; keeping report:",
 					err,
 				)
 
-				http.Error(
-					w,
-					"Failed to save photo information",
-					http.StatusInternalServerError,
-				)
-				return
+				photoDegraded = true
+				photoURLs = []string{}
 			}
 		}
 
@@ -1394,6 +1387,7 @@ func createReport(db *pgxpool.Pool) http.HandlerFunc {
 			"track_id":         trackID,
 			"status":           "VALID",
 			"ai_degraded":      aiDegraded,
+			"photo_degraded":   photoDegraded,
 			"category":         report.Category,
 			"ai_analysis":      aiResult.Analysis,
 			"decision":         aiResult.Decision,
