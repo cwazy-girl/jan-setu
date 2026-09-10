@@ -87,70 +87,111 @@ class GeminiEmbeddingBackend:
             output_dimensionality=self._dimensions,
         )
 
-        # Gemini Embedding 2 can return a separate embedding for
-        # each Content object in a single request. This avoids
-        # making one network round-trip per problem during
-        # deduplication and matching.
-        contents = [
-            self._types.Content(
-                parts=[
-                    self._types.Part.from_text(
-                        text=text,
+        # Gemini Embedding 2 has a shared input-token limit for
+        # each request. Keep requests bounded so a large set of
+        # existing civic reports is not silently truncated.
+        max_batch_items = 32
+        max_batch_characters = 12_000
+
+        batches: list[list[str]] = []
+        current_batch: list[str] = []
+        current_characters = 0
+
+        for text in values:
+            text_length = len(text)
+
+            should_flush = (
+                current_batch
+                and (
+                    len(current_batch) >= max_batch_items
+                    or (
+                        current_characters
+                        + text_length
+                        > max_batch_characters
                     )
-                ]
-            )
-            for text in values
-        ]
-
-        async def operation(
-            _remaining: float,
-        ) -> Any:
-            return await self._client.aio.models.embed_content(
-                model=self._model,
-                contents=contents,
-                config=config,
+                )
             )
 
-        response = await run_provider_request(
-            operation,
-            provider_name="gemini-embeddings",
-            retry=self._retry,
-            timeout_seconds=None,
-            normalize_error=self._normalize_error,
-        )
+            if should_flush:
+                batches.append(current_batch)
+                current_batch = []
+                current_characters = 0
 
-        embeddings = (
-            getattr(response, "embeddings", None)
-            or []
-        )
+            current_batch.append(text)
+            current_characters += text_length
 
-        if len(embeddings) != len(values):
-            raise ProviderError(
-                "Gemini embedding request returned an unexpected "
-                f"number of embeddings: expected {len(values)}, "
-                f"received {len(embeddings)}",
-                provider="gemini-embeddings",
-            )
+        if current_batch:
+            batches.append(current_batch)
 
         results: list[Sequence[float]] = []
 
-        for embedding in embeddings:
-            vector = list(
-                getattr(
-                    embedding,
-                    "values",
-                    None,
+        for batch_values in batches:
+            contents = [
+                self._types.Content(
+                    parts=[
+                        self._types.Part.from_text(
+                            text=text,
+                        )
+                    ]
                 )
+                for text in batch_values
+            ]
+
+            async def operation(
+                _remaining: float,
+            ) -> Any:
+                return await self._client.aio.models.embed_content(
+                    model=self._model,
+                    contents=contents,
+                    config=config,
+                )
+
+            response = await run_provider_request(
+                operation,
+                provider_name="gemini-embeddings",
+                retry=self._retry,
+                timeout_seconds=None,
+                normalize_error=self._normalize_error,
+            )
+
+            embeddings = (
+                getattr(response, "embeddings", None)
                 or []
             )
 
-            if not vector:
+            if len(embeddings) != len(batch_values):
                 raise ProviderError(
-                    "Gemini embedding request returned an empty vector",
+                    "Gemini embedding request returned an unexpected "
+                    f"number of embeddings: expected {len(batch_values)}, "
+                    f"received {len(embeddings)}",
                     provider="gemini-embeddings",
                 )
 
-            results.append(vector)
+            for embedding in embeddings:
+                vector = list(
+                    getattr(
+                        embedding,
+                        "values",
+                        None,
+                    )
+                    or []
+                )
+
+                if not vector:
+                    raise ProviderError(
+                        "Gemini embedding request returned an empty vector",
+                        provider="gemini-embeddings",
+                    )
+
+                results.append(vector)
+
+        if len(results) != len(values):
+            raise ProviderError(
+                "Gemini embedding batching returned an unexpected "
+                f"total number of embeddings: expected {len(values)}, "
+                f"received {len(results)}",
+                provider="gemini-embeddings",
+            )
 
         return results
 
