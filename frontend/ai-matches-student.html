@@ -288,12 +288,19 @@
 
 <script>
 
+const isLocalFile = window.location.protocol === "file:";
+const isLocalhost =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1";
+const isGitHubPages =
+  window.location.hostname.endsWith(".github.io");
+
 const API_BASE =
-  (window.location.hostname === "localhost" ||
-   window.location.hostname === "127.0.0.1" ||
-   window.location.protocol === "file:")
+  isLocalFile || isLocalhost
     ? "http://localhost:8080"
-    : "https://jan-setu-bf03.onrender.com";
+    : isGitHubPages
+      ? "https://jan-setu-bf03.onrender.com"
+      : window.location.origin;
 
 const roleLabels = {
   student: "Student",
@@ -600,9 +607,64 @@ async function loadReports() {
           ? result.reports
           : [];
 
-    const accountId = Number(
-  localStorage.getItem("solverAccountId")
-);
+    const accountIdText =
+      String(
+        localStorage.getItem("solverAccountId") || ""
+      ).trim();
+
+    if (
+      !/^\\d+$/.test(accountIdText) ||
+      Number(accountIdText) <= 0
+    ) {
+      throw new Error(
+        "Unable to identify the current solver."
+      );
+    }
+
+    const aiMatchResponse =
+      await fetch(
+        `${API_BASE}/api/student/matches/${encodeURIComponent(accountIdText)}`,
+        {
+          method: "GET",
+          headers: {
+            "Accept": "application/json"
+          },
+          cache: "no-store"
+        }
+      );
+
+    const aiMatchResult =
+      await aiMatchResponse
+        .json()
+        .catch(() => null);
+
+    if (!aiMatchResponse.ok) {
+      throw new Error(
+        aiMatchResult?.error ||
+        aiMatchResult?.message ||
+        "AI matching is currently unavailable."
+      );
+    }
+
+    const aiMatches =
+      Array.isArray(aiMatchResult?.matches)
+        ? aiMatchResult.matches
+        : [];
+
+    const aiMatchScores =
+      new Map(
+        aiMatches
+          .filter(match =>
+            match &&
+            match.problem_id !== undefined
+          )
+          .map(match => [
+            String(match.problem_id),
+            Number(match.score) || 0
+          ])
+      );
+
+    const accountId = Number(accountIdText);
 
 await Promise.all(
   reports.map(async report => {
@@ -625,16 +687,34 @@ await Promise.all(
 );
 
     const relevantReports =
-      reports.filter(report => {
-        if (!report) return false;
+      reports
+        .filter(report => {
+          if (!report) return false;
 
-        const status =
-          String(report.status || "")
-            .trim()
-            .toLowerCase();
+          const status =
+            String(report.status || "")
+              .trim()
+              .toLowerCase();
 
-        return status !== "resolved" && isRelevantReport(report);
-      });
+          return (
+            status !== "resolved" &&
+            aiMatchScores.has(
+              String(report.id)
+            )
+          );
+        })
+        .map(report => ({
+          ...report,
+          ai_match_score:
+            aiMatchScores.get(
+              String(report.id)
+            ) || 0
+        }))
+        .sort(
+          (left, right) =>
+            right.ai_match_score -
+            left.ai_match_score
+        );
 
 
     renderReports(relevantReports);

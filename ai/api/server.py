@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from ai.embeddings.gemini import GeminiEmbeddingBackend
+from ai.embeddings.service import cosine_similarity
 from ai.orchestrator import AIOrchestrator
 
 from ai.schemas.dedup import IncomingProblem
@@ -96,6 +97,38 @@ class ReportResponse(BaseModel):
 # ============================================================
 # INDUSTRY MATCHING MODELS
 # ============================================================
+
+class StudentMatchProfile(BaseModel):
+    role: str = "student"
+    department: str = ""
+    skills: str = ""
+    interests: str = ""
+    projects: str = ""
+
+
+class StudentMatchProblem(BaseModel):
+    id: str
+    title: str = Field(min_length=3, max_length=180)
+    description: str = Field(min_length=3, max_length=10_000)
+    category: str = ""
+    district: str = ""
+    locality: str = ""
+    pin_code: str = ""
+
+
+class StudentMatchRequest(BaseModel):
+    profile: StudentMatchProfile
+    problems: list[StudentMatchProblem] = Field(default_factory=list)
+
+
+class StudentSemanticMatch(BaseModel):
+    problem_id: str
+    score: float = Field(ge=0, le=1)
+
+
+class StudentMatchResponse(BaseModel):
+    matches: list[StudentSemanticMatch] = Field(default_factory=list)
+
 
 class IndustryOrganization(BaseModel):
     """
@@ -446,6 +479,117 @@ async def analyze_report(
 # ============================================================
 # INDUSTRY AI MATCHING
 # ============================================================
+
+@app.post(
+    "/match-student",
+    response_model=StudentMatchResponse,
+)
+async def match_student(
+    request: StudentMatchRequest,
+) -> StudentMatchResponse:
+
+    if not request.problems:
+        return StudentMatchResponse(matches=[])
+
+    profile = request.profile
+
+    profile_parts = [
+        f"Role: {profile.role}",
+        f"Academic field: {profile.department}",
+        f"Skills: {profile.skills}",
+        f"Interests: {profile.interests}",
+        f"Projects: {profile.projects}",
+    ]
+
+    profile_text = "\n".join(
+        part
+        for part in profile_parts
+        if part.split(":", 1)[1].strip()
+    )
+
+    if not profile_text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Profile does not contain matching information",
+        )
+
+    problem_texts = []
+
+    for problem in request.problems:
+        problem_texts.append(
+            "\n".join(
+                [
+                    f"Title: {problem.title}",
+                    f"Category: {problem.category}",
+                    f"Description: {problem.description}",
+                    f"Locality: {problem.locality}",
+                    f"District: {problem.district}",
+                ]
+            )
+        )
+
+    try:
+        embedding_backend = GeminiEmbeddingBackend(
+            api_key=os.getenv("JANSETU_EMBEDDING_API_KEY"),
+        )
+
+        vectors = await embedding_backend.embed_batch(
+            [profile_text, *problem_texts]
+        )
+
+        if len(vectors) != len(request.problems) + 1:
+            raise RuntimeError(
+                "Embedding service returned unexpected vector count"
+            )
+
+        profile_vector = vectors[0]
+
+        matches = []
+
+        for problem, vector in zip(
+            request.problems,
+            vectors[1:],
+            strict=True,
+        ):
+            similarity = cosine_similarity(
+                profile_vector,
+                vector,
+            )
+
+            score = max(
+                0.0,
+                min(1.0, float(similarity)),
+            )
+
+            matches.append(
+                StudentSemanticMatch(
+                    problem_id=problem.id,
+                    score=round(score, 6),
+                )
+            )
+
+        matches.sort(
+            key=lambda match: -match.score
+        )
+
+        return StudentMatchResponse(
+            matches=matches[:12]
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Student semantic matching failed: "
+                f"{type(exc).__name__}: {exc}"
+            ),
+        ) from exc
+
 
 @app.post(
     "/match-industry",

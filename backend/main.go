@@ -15,12 +15,21 @@ func main() {
 	}
 	defer db.Close()
 
-	err = db.Ping(context.Background())
-	if err != nil {
-		log.Fatal("Database ping failed:", err)
-	}
+	pingCtx, pingCancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	err = db.Ping(pingCtx)
+	pingCancel()
 
-	log.Println("PostgreSQL connected successfully!")
+	if err != nil {
+		log.Printf(
+			"Database unavailable at startup; server will remain up: %v",
+			err,
+		)
+	} else {
+		log.Println("PostgreSQL connected successfully!")
+	}
 
 	http.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -52,6 +61,10 @@ func main() {
 	http.HandleFunc(
 		"GET /api/industry/matches/{accountID}",
 		getIndustryMatches(db),
+	)
+	http.HandleFunc(
+		"GET /api/student/matches/{accountID}",
+		getStudentMatches(db),
 	)
 	http.HandleFunc("/api/reports/{id}/work", getWork(db))
 	http.HandleFunc("/api/reports/{id}/mentors", joinProblemAsMentor(db))

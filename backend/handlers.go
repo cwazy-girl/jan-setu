@@ -90,6 +90,38 @@ type IndustryMatchResponse struct {
 	Matches []map[string]interface{} `json:"matches"`
 }
 
+type StudentMatchProfile struct {
+	Role       string `json:"role"`
+	Department string `json:"department"`
+	Skills     string `json:"skills"`
+	Interests  string `json:"interests"`
+	Projects   string `json:"projects"`
+}
+
+type StudentMatchProblem struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	District    string `json:"district"`
+	Locality    string `json:"locality"`
+	PinCode     string `json:"pin_code"`
+}
+
+type StudentMatchRequest struct {
+	Profile  StudentMatchProfile   `json:"profile"`
+	Problems []StudentMatchProblem `json:"problems"`
+}
+
+type StudentSemanticMatch struct {
+	ProblemID string  `json:"problem_id"`
+	Score     float64 `json:"score"`
+}
+
+type StudentMatchResponse struct {
+	Matches []StudentSemanticMatch `json:"matches"`
+}
+
 func generateTrackID() (string, error) {
 	b := make([]byte, 8)
 
@@ -533,6 +565,293 @@ func analyzeReportWithAI(
 	}
 
 	return &result, nil
+}
+
+// ============================================================
+// STUDENT / RESEARCHER SEMANTIC AI MATCHING
+// ============================================================
+
+func matchStudentWithAI(
+	db *pgxpool.Pool,
+	accountID int64,
+) (*StudentMatchResponse, error) {
+
+	aiURL := strings.TrimRight(
+		os.Getenv("JANSETU_AI_URL"),
+		"/",
+	)
+
+	if aiURL == "" {
+		aiURL = "http://localhost:8000"
+	}
+
+	var profile StudentMatchProfile
+
+	err := db.QueryRow(
+		context.Background(),
+		`
+		SELECT
+			COALESCE(sa.role, ''),
+			COALESCE(sp.department, ''),
+			COALESCE(sp.skills, ''),
+			COALESCE(sp.interests, ''),
+			COALESCE(sp.projects, '')
+		FROM solver_accounts sa
+		LEFT JOIN solver_profiles sp
+			ON sp.account_id = sa.id
+		WHERE sa.id = $1
+		  AND sa.role IN ('student', 'researcher')
+		`,
+		accountID,
+	).Scan(
+		&profile.Role,
+		&profile.Department,
+		&profile.Skills,
+		&profile.Interests,
+		&profile.Projects,
+	)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf(
+				"student or researcher profile not found",
+			)
+		}
+
+		return nil, fmt.Errorf(
+			"failed to fetch student profile: %w",
+			err,
+		)
+	}
+
+	if strings.TrimSpace(profile.Department) == "" &&
+		strings.TrimSpace(profile.Skills) == "" &&
+		strings.TrimSpace(profile.Interests) == "" &&
+		strings.TrimSpace(profile.Projects) == "" {
+
+		return nil, fmt.Errorf(
+			"complete your profile before requesting AI matches",
+		)
+	}
+
+	rows, err := db.Query(
+		context.Background(),
+		`
+		SELECT
+			id,
+			COALESCE(title, ''),
+			COALESCE(description, ''),
+			COALESCE(category, ''),
+			COALESCE(district, ''),
+			COALESCE(location, ''),
+			COALESCE(pin_code, '')
+		FROM reports
+		WHERE COALESCE(workflow_status, 'AVAILABLE') <> 'SOLVED'
+		  AND UPPER(COALESCE(status, '')) NOT IN ('REJECTED', 'INVALID')
+		  AND LOWER(COALESCE(status, '')) <> 'resolved'
+		ORDER BY created_at DESC
+		LIMIT 200
+		`,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to fetch civic problems for student matching: %w",
+			err,
+		)
+	}
+
+	defer rows.Close()
+
+	problems := make([]StudentMatchProblem, 0)
+
+	for rows.Next() {
+
+		var problem StudentMatchProblem
+		var id int64
+
+		if err := rows.Scan(
+			&id,
+			&problem.Title,
+			&problem.Description,
+			&problem.Category,
+			&problem.District,
+			&problem.Locality,
+			&problem.PinCode,
+		); err != nil {
+
+			return nil, fmt.Errorf(
+				"failed to read civic problem for student matching: %w",
+				err,
+			)
+		}
+
+		if len(strings.TrimSpace(problem.Title)) < 3 ||
+			len(strings.TrimSpace(problem.Description)) < 3 {
+			continue
+		}
+
+		problem.ID = strconv.FormatInt(id, 10)
+
+		problems = append(
+			problems,
+			problem,
+		)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf(
+			"failed while reading civic problems for student matching: %w",
+			err,
+		)
+	}
+
+	requestBody := StudentMatchRequest{
+		Profile:  profile,
+		Problems: problems,
+	}
+
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to encode student AI request: %w",
+			err,
+		)
+	}
+
+	req, err := http.NewRequest(
+		http.MethodPost,
+		aiURL+"/match-student",
+		bytes.NewReader(body),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to create student AI request: %w",
+			err,
+		)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"student AI service unavailable: %w",
+			err,
+		)
+	}
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to read student AI response: %w",
+			err,
+		)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf(
+			"student AI returned HTTP %d: %s",
+			resp.StatusCode,
+			strings.TrimSpace(string(responseBody)),
+		)
+	}
+
+	var result StudentMatchResponse
+
+	if err := json.Unmarshal(
+		responseBody,
+		&result,
+	); err != nil {
+		return nil, fmt.Errorf(
+			"invalid student AI response: %w",
+			err,
+		)
+	}
+
+	log.Printf(
+		"Student AI RESULT: account=%d problems=%d matches=%d",
+		accountID,
+		len(problems),
+		len(result.Matches),
+	)
+
+	return &result, nil
+}
+
+func getStudentMatches(
+	db *pgxpool.Pool,
+) http.HandlerFunc {
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			http.Error(
+				w,
+				"Method not allowed",
+				http.StatusMethodNotAllowed,
+			)
+			return
+		}
+
+		accountID, err := strconv.ParseInt(
+			strings.TrimSpace(
+				r.PathValue("accountID"),
+			),
+			10,
+			64,
+		)
+
+		if err != nil || accountID <= 0 {
+			http.Error(
+				w,
+				"Invalid account ID",
+				http.StatusBadRequest,
+			)
+			return
+		}
+
+		result, err := matchStudentWithAI(
+			db,
+			accountID,
+		)
+
+		if err != nil {
+			log.Println(
+				"Student matching error:",
+				err,
+			)
+
+			http.Error(
+				w,
+				err.Error(),
+				http.StatusInternalServerError,
+			)
+			return
+		}
+
+		w.Header().Set(
+			"Content-Type",
+			"application/json",
+		)
+
+		json.NewEncoder(w).Encode(result)
+	}
 }
 
 // ============================================================
