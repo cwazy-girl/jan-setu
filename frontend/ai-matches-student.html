@@ -613,7 +613,7 @@ async function loadReports() {
       ).trim();
 
     if (
-      !/^\\d+$/.test(accountIdText) ||
+      !/^\d+$/.test(accountIdText) ||
       Number(accountIdText) <= 0
     ) {
       throw new Error(
