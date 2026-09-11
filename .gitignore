@@ -21,3 +21,5 @@ __pycache__/
 # Editor
 .vscode/
 .idea/
+# Local build artifacts
+backend/app
