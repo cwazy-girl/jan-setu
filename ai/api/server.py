@@ -561,6 +561,12 @@ async def match_student(
                 min(1.0, float(similarity)),
             )
 
+            # Do not recommend a civic problem merely because it
+            # happens to be one of the "least unrelated" options.
+            # Only genuinely relevant semantic matches are returned.
+            if score < 0.62:
+                continue
+
             matches.append(
                 StudentSemanticMatch(
                     problem_id=problem.id,
